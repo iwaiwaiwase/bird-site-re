@@ -10,6 +10,7 @@ const BirdMap = dynamic(() => import("./BirdMap"), {
 type BirdRecord = {
   id: number;
   japaneseName: string;
+  family: string;
   photo: string;
   dateTaken: string;
   placeName: string;
@@ -184,6 +185,7 @@ type FormState = {
     const requiredHeaders = [
         "id",
         "japaneseName",
+        "family",
         "photo",
         "dateTaken",
         "placeName",
@@ -208,6 +210,7 @@ type FormState = {
         return {
         id: Number(row.id) || Date.now() + index,
         japaneseName: row.japaneseName,
+        family: row.family,
         photo: row.photo,
         dateTaken: row.dateTaken,
         placeName: row.placeName,
@@ -250,9 +253,12 @@ type FormState = {
     const [search, setSearch] = React.useState("");
     const [selectedType, setSelectedType] = React.useState("すべて");
     const [selectedPrefecture, setSelectedPrefecture] = React.useState("すべて");
+    const [selectedFamily, setSelectedFamily] = React.useState("すべて");
     const [sortOrder, setSortOrder] = React.useState("name_asc");
-    const [selectedGroupID, setSelectedGroupID] = React.useState(initialBirds[0]?.speciesGroupID ?? "");
-    const [selectedPhotoID, setSelectedPhotoID] = React.useState<number | null>(initialBirds[0]?.id ?? null);
+    const [selectedGroupID, setSelectedGroupID] = React.useState("");
+    const [selectedPhotoID, setSelectedPhotoID] = React.useState<number | null>(null);
+    const [isPopupOpen, setIsPopupOpen] = React.useState(false);
+    const [isImageZoomOpen, setIsImageZoomOpen] = React.useState(false);
     const [csvText, setCsvText] = React.useState(csvTemplate);
     const [message, setMessage] = React.useState("");
     const [form, setForm] = React.useState<FormState>(emptyForm);
@@ -267,69 +273,67 @@ type FormState = {
         "すべて",
         ...new Set(birds.map((bird) => bird.individualType)),
     ];
+    const families = [
+         "すべて",
+        ...new Set(birds.map((bird) => bird.family).filter(Boolean)),
+    ];
 
     const filteredGroups = React.useMemo(() => {
-        const keyword = search.trim().toLowerCase();
-        const grouped = groupBirds(birds);
+  const keyword = search.trim().toLowerCase();
+  const grouped = groupBirds(birds);
 
-        const result = grouped.filter((group) => {
-        const recordsText = group.records
-            .map((record) => [
-            record.japaneseName,
-            record.placeName,
-            record.prefecture,
-            record.country,
-            record.individualType,
-            record.memo,
-            record.dateTaken,
-            record.speciesGroupID,
-            ].join(" "))
-            .join(" ")
-            .toLowerCase();
+  const result = grouped.filter((group) => {
+    const recordsText = group.records
+      .map((record) => [
+        record.japaneseName,
+        record.family,
+        record.placeName,
+        record.prefecture,
+        record.country,
+        record.individualType,
+        record.memo,
+        record.dateTaken,
+        record.speciesGroupID,
+      ].join(" "))
+      .join(" ")
+      .toLowerCase();
 
-        const matchesSearch = keyword === "" || recordsText.includes(keyword);
-        const matchesType =
-            selectedType === "すべて" ||
-            group.records.some((record) => record.individualType === selectedType);
-        const matchesPrefecture =
-            selectedPrefecture === "すべて" ||
-            group.records.some((record) => record.prefecture === selectedPrefecture);
+    const matchesSearch = keyword === "" || recordsText.includes(keyword);
 
-        return matchesSearch && matchesType && matchesPrefecture;
-        });
+    const matchesType =
+      selectedType === "すべて" ||
+      group.records.some((record) => record.individualType === selectedType);
 
-        result.sort((a, b) => {
-        if (sortOrder === "name_asc") {
-            return a.japaneseName.localeCompare(b.japaneseName, "ja");
-        }
-        if (sortOrder === "name_desc") {
-            return b.japaneseName.localeCompare(a.japaneseName, "ja");
-        }
-        if (sortOrder === "date_asc") {
-            return a.latestDate.localeCompare(b.latestDate);
-        }
-        return b.latestDate.localeCompare(a.latestDate);
-        });
+    const matchesPrefecture =
+      selectedPrefecture === "すべて" ||
+      group.records.some((record) => record.prefecture === selectedPrefecture);
 
-        return result;
-    }, [birds, search, selectedType, selectedPrefecture, sortOrder]);
+    const matchesFamily =
+      selectedFamily === "すべて" ||
+      group.records.some((record) => record.family === selectedFamily);
 
+    return matchesSearch && matchesType && matchesPrefecture && matchesFamily;
+  });
+
+  // ← filter の外に出す（これが重要）
+  result.sort((a, b) => {
+    if (sortOrder === "name_asc") {
+      return a.japaneseName.localeCompare(b.japaneseName, "ja");
+    }
+    if (sortOrder === "name_desc") {
+      return b.japaneseName.localeCompare(a.japaneseName, "ja");
+    }
+    if (sortOrder === "date_asc") {
+      return a.latestDate.localeCompare(b.latestDate);
+    }
+    return b.latestDate.localeCompare(a.latestDate);
+  });
+
+  return result;
+}, [birds, search, selectedType, selectedPrefecture, selectedFamily, sortOrder]);
     const selectedGroup = React.useMemo(() => {
-        return filteredGroups.find((group) => group.speciesGroupID === selectedGroupID) ?? filteredGroups[0] ?? null;
+     return filteredGroups.find((group) => group.speciesGroupID === selectedGroupID) ?? null;
     }, [filteredGroups, selectedGroupID]);
-
-    React.useEffect(() => {
-        if (!selectedGroup && filteredGroups.length > 0) {
-        setSelectedGroupID(filteredGroups[0].speciesGroupID);
-        setSelectedPhotoID(filteredGroups[0].records[0]?.id ?? null);
-        return;
-        }
-
-        if (selectedGroup && !filteredGroups.some((group) => group.speciesGroupID === selectedGroup.speciesGroupID)) {
-        setSelectedGroupID(filteredGroups[0]?.speciesGroupID ?? "");
-        setSelectedPhotoID(filteredGroups[0]?.records[0]?.id ?? null);
-        }
-    }, [filteredGroups, selectedGroup]);
 
     React.useEffect(() => {
         if (selectedGroup) {
@@ -465,13 +469,15 @@ type FormState = {
     };
 
     return (
-        <div className="min-h-screen bg-slate-50 text-slate-900">
-        <header className="border-b bg-white">
+        <div className="min-h-screen bg-gradient-to-br from-emerald-50 via-sky-50 to-stone-100 text-slate-900">
+        <header className="border-b border-white/60 bg-white/70 backdrop-blur">
             <div className="mx-auto max-w-7xl px-6 py-8">
-            <p className="text-sm font-medium tracking-wide text-slate-500">Bird Record Archive</p>
-            <h1 className="mt-2 text-4xl font-bold tracking-tight">鳥類観察記録サイト</h1>
+            <p className="text-sm font-medium tracking-wide text-emerald-700">
+              Wild Bird Photo Gallery</p>
+            <h1 className="mt-2 text-4xl font-bold tracking-tight">
+              ロックセトリミメモリー（野鳥観察記録）</h1>
             <p className="mt-3 max-w-3xl text-base text-slate-600">
-                1種類に複数写真を紐づけて管理できる構成です。一覧は種類単位、詳細は写真単位で切り替えられます。
+                観察した鳥の写真をアップロードするだけの自己満鳥見録用サイト
             </p>
             </div>
         </header>
@@ -496,191 +502,80 @@ type FormState = {
             </div>
             </section>
 
-            <section className="mb-8 grid gap-6 xl:grid-cols-[1.4fr_1fr]">
-            <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <div className="mb-4 flex items-center justify-between gap-3">
-                <h2 className="text-2xl font-semibold">CSV取り込み</h2>
-                <button
-                    onClick={downloadTemplate}
-                    className="rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50"
-                >
-                    テンプレートDL
-                </button>
-                </div>
-                <p className="mb-3 text-sm text-slate-600">
-                speciesGroupID を同じにすると、同じ種類に複数写真をまとめて登録できます。
-                起動時には <span className="font-medium">{AUTO_CSV_PATH}</span> を自動読み込みします。
-                </p>
-                <div className="mb-3 rounded-2xl bg-slate-50 px-4 py-3 text-sm text-slate-600">
-                更新元CSVは、開発時に <span className="font-medium">public/data/birds_master.csv</span> へ
-                コピーしておく運用を想定しています。
-                現在の状態: <span className="font-medium">{autoLoaded ? "自動読込成功" : "手動読込待ち"}</span>
-                </div>
-                <div className="mb-4 flex flex-wrap items-center gap-3">
-                <label className="inline-flex cursor-pointer items-center rounded-2xl border border-slate-200 px-4 py-2 text-sm font-medium hover:bg-slate-50">
-                    CSVファイルを選択
-                    <input
-                    type="file"
-                    accept=".csv,text/csv"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                    />
-                </label>
-                <span className="text-sm text-slate-500">UTF-8 のCSVに対応</span>
-                </div>
-                <textarea
-                value={csvText}
-                onChange={(e) => setCsvText(e.target.value)}
-                className="h-64 w-full rounded-2xl border border-slate-200 p-4 font-mono text-sm outline-none focus:border-slate-400"
-                />
-                <div className="mt-4 flex flex-wrap items-center gap-3">
-                <button
-                    onClick={handleImportCsv}
-                    className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:opacity-90"
-                >
-                    CSVを反映
-                </button>
-                <span className="text-sm text-slate-500">{message}</span>
-                </div>
+            <section className="mb-8 grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-5">
+            <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+                キーワード検索
+            </label>
+            <input
+             value={search}
+             onChange={(e) => setSearch(e.target.value)}
+             placeholder="和名・科・場所・メモなど"
+             className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
+            />
+           </div>
+
+            <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+             科
+            </label>
+            <select
+             value={selectedFamily}
+             onChange={(e) => setSelectedFamily(e.target.value)}
+             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
+            >
+             {families.map((family) => (
+             <option key={family}>{family}</option>
+            ))}
+            </select>
             </div>
 
-            <div className="rounded-3xl bg-white p-5 shadow-sm">
-                <h2 className="text-2xl font-semibold">手動登録</h2>
-                <div className="mt-4 grid gap-3">
-                <input
-                    value={form.japaneseName}
-                    onChange={(e) => handleFormChange("japaneseName", e.target.value)}
-                    placeholder="和名"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                />
-                <input
-                    value={form.speciesGroupID}
-                    onChange={(e) => handleFormChange("speciesGroupID", e.target.value)}
-                    placeholder="speciesGroupID（同種なら同じ値）"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                />
-                <input
-                    value={form.photo}
-                    onChange={(e) => handleFormChange("photo", e.target.value)}
-                    placeholder="写真URL または /images/..."
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                />
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                    type="date"
-                    value={form.dateTaken}
-                    onChange={(e) => handleFormChange("dateTaken", e.target.value)}
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                    <input
-                    value={form.placeName}
-                    onChange={(e) => handleFormChange("placeName", e.target.value)}
-                    placeholder="撮影場所名"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                    value={form.latitude}
-                    onChange={(e) => handleFormChange("latitude", e.target.value)}
-                    placeholder="緯度"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                    <input
-                    value={form.longitude}
-                    onChange={(e) => handleFormChange("longitude", e.target.value)}
-                    placeholder="経度"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                </div>
-                <div className="grid gap-3 sm:grid-cols-2">
-                    <input
-                    value={form.prefecture}
-                    onChange={(e) => handleFormChange("prefecture", e.target.value)}
-                    placeholder="都道府県"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                    <input
-                    value={form.country}
-                    onChange={(e) => handleFormChange("country", e.target.value)}
-                    placeholder="国"
-                    className="rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                    />
-                </div>
-                <select
-                    value={form.individualType}
-                    onChange={(e) => handleFormChange("individualType", e.target.value)}
-                    className="rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
-                >
-                    {individualTypeOptions.map((type) => (
-                    <option key={type}>{type}</option>
-                    ))}
-                </select>
-                <textarea
-                    value={form.memo}
-                    onChange={(e) => handleFormChange("memo", e.target.value)}
-                    placeholder="メモ"
-                    className="h-24 rounded-2xl border border-slate-200 p-4 outline-none focus:border-slate-400"
-                />
-                <button
-                    onClick={handleAddBird}
-                    className="rounded-2xl bg-slate-900 px-5 py-3 text-sm font-medium text-white hover:opacity-90"
-                >
-                    記録を追加
-                </button>
-                </div>
+            <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+            都道府県
+            </label>
+            <select
+             value={selectedPrefecture}
+             onChange={(e) => setSelectedPrefecture(e.target.value)}
+             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
+            >
+              {prefectures.map((prefecture) => (
+              <option key={prefecture}>{prefecture}</option>
+               ))}
+            </select>
+            </div>
+
+            <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+             個体区分
+            </label>
+            <select
+             value={selectedType}
+             onChange={(e) => setSelectedType(e.target.value)}
+             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
+            >
+             {individualTypes.map((type) => (
+            <option key={type}>{type}</option>
+            ))}
+            </select>
+            </div>
+
+            <div>
+            <label className="mb-2 block text-sm font-medium text-slate-700">
+              撮影日
+            </label>
+            <select
+             value={sortOrder}
+             onChange={(e) => setSortOrder(e.target.value)}
+             className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
+            >
+            <option value="name_asc">名前順（昇順）</option>
+            <option value="name_desc">名前順（降順）</option>
+            <option value="date_desc">最新撮影日が新しい順</option>
+            <option value="date_asc">最新撮影日が古い順</option>
+            </select>
             </div>
             </section>
-
-            <section className="mb-8 grid gap-4 rounded-3xl bg-white p-5 shadow-sm md:grid-cols-4">
-            <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">キーワード検索</label>
-                <input
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                placeholder="和名・場所・メモなど"
-                className="w-full rounded-2xl border border-slate-200 px-4 py-3 outline-none focus:border-slate-400"
-                />
-            </div>
-            <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">個体区分</label>
-                <select
-                value={selectedType}
-                onChange={(e) => setSelectedType(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
-                >
-                {individualTypes.map((type) => (
-                    <option key={type}>{type}</option>
-                ))}
-                </select>
-            </div>
-            <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">都道府県</label>
-                <select
-                value={selectedPrefecture}
-                onChange={(e) => setSelectedPrefecture(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
-                >
-                {prefectures.map((prefecture) => (
-                    <option key={prefecture}>{prefecture}</option>
-                ))}
-                </select>
-            </div>
-            <div>
-                <label className="mb-2 block text-sm font-medium text-slate-700">並び順</label>
-                <select
-                value={sortOrder}
-                onChange={(e) => setSortOrder(e.target.value)}
-                className="w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 outline-none focus:border-slate-400"
-                >
-                <option value="name_asc">名前順（昇順）</option>
-                <option value="name_desc">名前順（降順）</option>
-                <option value="date_desc">最新撮影日が新しい順</option>
-                <option value="date_asc">最新撮影日が古い順</option>
-                </select>
-            </div>
-            </section>
-
             <section className="mb-8 rounded-3xl bg-white p-6 shadow-sm">
             <div className="mb-4 flex items-center justify-between gap-3">
                 <div>
@@ -700,30 +595,34 @@ type FormState = {
             />
             </section>
 
-            <section className="grid gap-6 xl:grid-cols-[1.05fr_0.95fr]">
+            <section className="grid gap-6">    
             <div>
                 <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-2xl font-semibold">種類一覧</h2>
                 <p className="text-sm text-slate-500">{filteredGroups.length} 種類表示</p>
                 </div>
-                <div className="grid gap-5 lg:grid-cols-2">
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-5">
                 {filteredGroups.map((group) => (
                     <button
                     key={group.speciesGroupID}
                     onClick={() => {
-                        setSelectedGroupID(group.speciesGroupID);
-                        setSelectedPhotoID(group.records[0]?.id ?? null);
+                     setSelectedGroupID(group.speciesGroupID);
+                     setSelectedPhotoID(group.records[0]?.id ?? null);
+                     setIsPopupOpen(true);
                     }}
                     className={`overflow-hidden rounded-3xl bg-white text-left shadow-sm transition hover:-translate-y-1 hover:shadow-md ${
                         selectedGroup?.speciesGroupID === group.speciesGroupID ? "ring-2 ring-slate-900" : ""
                     }`}
                     >
-                    <img src={group.thumbnail} alt={group.japaneseName} className="h-56 w-full object-cover" />
+                    <img src={group.thumbnail} alt={group.japaneseName} className="h-40 w-full object-cover" />
                     <div className="p-5">
                         <div className="flex items-start justify-between gap-3">
                         <div>
                             <p className="text-sm text-slate-500">和名</p>
                             <h3 className="text-xl font-semibold">{group.japaneseName}</h3>
+                            <p className="mt-1 text-sm text-slate-500">
+                            {group.records[0]?.family || "科 不明"}
+                            </p>
                         </div>
                         <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-700">
                             {group.records.length}枚
@@ -749,89 +648,109 @@ type FormState = {
                 </div>
             </div>
 
-            <aside className="rounded-3xl bg-white p-6 shadow-sm">
-                {selectedGroup && selectedRecord ? (
-                <>
-                    <p className="text-sm font-medium tracking-wide text-slate-500">詳細表示</p>
-                    <div className="mt-4 grid gap-3 grid-cols-4">
-                    {selectedGroup.records.map((record) => (
-                        <button
-                        key={record.id}
-                        onClick={() => setSelectedPhotoID(record.id)}
-                        className={`overflow-hidden rounded-2xl border ${
-                            selectedRecord.id === record.id ? "border-slate-900 ring-2 ring-slate-900" : "border-slate-200"
-                        }`}
-                        >
-                        <img src={record.photo} alt={record.japaneseName} className="h-20 w-full object-cover" />
-                        </button>
-                    ))}
-                    </div>
-
-                    <img
-                    src={selectedRecord.photo}
-                    alt={selectedRecord.japaneseName}
-                    className="mt-4 h-72 w-full rounded-3xl object-cover"
-                    />
-
-                    <div className="mt-5 flex items-start justify-between gap-3">
-                    <div>
-                        <p className="text-sm text-slate-500">和名</p>
-                        <h2 className="text-3xl font-bold">{selectedGroup.japaneseName}</h2>
-                    </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-sm font-medium text-slate-700">
-                        {selectedRecord.individualType}
-                    </span>
-                    </div>
-
-                    <p className="mt-2 text-sm text-slate-500">
-                    {selectedGroup.records.length}枚の写真が登録されています。サムネイルを押すと切り替わります。
-                    </p>
-
-                    <dl className="mt-6 grid gap-4 sm:grid-cols-2">
-                    <div>
-                        <dt className="text-sm text-slate-500">撮影日</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.dateTaken}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">撮影場所名</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.placeName}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">都道府県</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.prefecture}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">国</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.country}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">緯度</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.latitude}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">経度</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.longitude}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">speciesGroupID</dt>
-                        <dd className="mt-1 font-medium break-all">{selectedGroup.speciesGroupID}</dd>
-                    </div>
-                    <div>
-                        <dt className="text-sm text-slate-500">写真ID</dt>
-                        <dd className="mt-1 font-medium">{selectedRecord.id}</dd>
-                    </div>
-                    </dl>
-
-                    <div className="mt-6 rounded-3xl bg-slate-50 p-5">
-                    <p className="text-sm text-slate-500">メモ</p>
-                    <p className="mt-2 leading-7 text-slate-700">{selectedRecord.memo || "メモなし"}</p>
-                    </div>
-                </>
-                ) : (
-                <p>種類を選択してください。</p>
-                )}
-            </aside>
             </section>
+        {isPopupOpen && selectedGroup && selectedRecord && (
+    <div
+         className="fixed inset-0 z-[9999] flex items-center justify-center bg-black/50 p-4"
+        onClick={() => setIsPopupOpen(false)}
+    >
+    <div
+        className="relative max-h-[90vh] w-full max-w-4xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+    >
+      <button
+        onClick={() => {
+         setIsPopupOpen(false);
+        }}
+        className="absolute right-4 top-4 rounded-full bg-slate-100 px-4 py-2 text-sm font-medium hover:bg-slate-200"
+      >
+        閉じる
+      </button>
+
+      <p className="text-sm font-medium tracking-wide text-slate-500">
+        詳細表示
+      </p>
+
+      <h2 className="mt-2 text-3xl font-bold">
+        {selectedGroup.japaneseName}
+      </h2>
+
+      <div className="mt-4 grid gap-3 grid-cols-4">
+        {selectedGroup.records.map((record) => (
+          <button
+            key={record.id}
+            onClick={() => setSelectedPhotoID(record.id)}
+            className={`overflow-hidden rounded-2xl border ${
+              selectedRecord.id === record.id
+                ? "border-slate-900 ring-2 ring-slate-900"
+                : "border-slate-200"
+            }`}
+          >
+            <img
+              src={record.photo || "/images/no-image.png"}
+              alt={record.japaneseName}
+              className="h-20 w-full object-cover"
+            />
+          </button>
+        ))}
+      </div>
+
+      <button
+        type="button"
+        onClick={() => setIsImageZoomOpen(true)}
+        className="mt-4 block w-full overflow-hidden rounded-3xl"
+      >
+      <img
+        src={selectedRecord.photo || "/images/no-image.png"}
+        alt={selectedRecord.japaneseName}
+        className="h-[420px] w-full object-cover transition hover:scale-[1.02]"
+      />
+      </button>
+
+      <dl className="mt-6 grid gap-4 sm:grid-cols-2">
+        <div>
+          <dt className="text-sm text-slate-500">科</dt>
+          <dd className="mt-1 font-medium">{selectedRecord.family}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-slate-500">撮影日</dt>
+          <dd className="mt-1 font-medium">{selectedRecord.dateTaken}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-slate-500">撮影場所名</dt>
+          <dd className="mt-1 font-medium">{selectedRecord.placeName}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-slate-500">都道府県</dt>
+          <dd className="mt-1 font-medium">{selectedRecord.prefecture}</dd>
+        </div>
+        <div>
+          <dt className="text-sm text-slate-500">個体区分</dt>
+          <dd className="mt-1 font-medium">{selectedRecord.individualType}</dd>
+        </div>
+      </dl>
+
+      <div className="mt-6 rounded-3xl bg-slate-50 p-5">
+        <p className="text-sm text-slate-500">メモ</p>
+        <p className="mt-2 leading-7 text-slate-700">
+          {selectedRecord.memo || "メモなし"}
+        </p>
+      </div>
+    </div>
+  </div>
+)}
+{isImageZoomOpen && selectedRecord && (
+  <div
+    className="fixed inset-0 z-[10000] flex items-center justify-center bg-black/80 p-4"
+    onClick={() => setIsImageZoomOpen(false)}
+  >
+    <img
+      src={selectedRecord.photo || "/images/no-image.png"}
+      alt={selectedRecord.japaneseName}
+      className="max-h-[90vh] max-w-[95vw] rounded-3xl object-contain shadow-2xl"
+    />
+  </div>
+)}
         </main>
         </div>
     );
