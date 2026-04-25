@@ -34,6 +34,7 @@ type BirdGroup = {
 
 type FormState = {
   japaneseName: string;
+  family: string;
   photo: string;
   dateTaken: string;
   placeName: string;
@@ -135,6 +136,7 @@ type FormState = {
 
     const emptyForm: FormState = {
     japaneseName: "",
+    family: "",
     photo: "",
     dateTaken: "",
     placeName: "",
@@ -427,6 +429,7 @@ type FormState = {
         const newBird: BirdRecord = {
         id: Date.now(),
         japaneseName: form.japaneseName,
+        family: form.family,
         photo: form.photo,
         dateTaken: form.dateTaken,
         placeName: form.placeName,
