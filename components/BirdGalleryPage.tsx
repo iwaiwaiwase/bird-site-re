@@ -50,10 +50,9 @@ type FormState = {
     const individualTypeOptions = ["成鳥オス", "成鳥メス", "幼鳥オス", "幼鳥メス", "不明"];
 
     const csvTemplate = `id,japaneseName,family,photo,dateTaken,placeName,latitude,longitude,prefecture,country,individualType,memo,speciesGroupID
-1,ルリビタキ,ヒタキ科,/images/birds/ruribitaki-01.jpg,2026-01-12,京都御苑,35.0253,135.7621,京都府,日本,成鳥オス,朝の林縁で観察,ruribitaki
-2,ルリビタキ,ヒタキ科,/images/birds/ruribitaki-02.jpg,2026-01-15,比叡山,35.0704,135.8405,京都府,日本,成鳥メス,別地点で確認,ruribitaki
-3,カワセミ,カワセミ科,/images/birds/kawasemi-01.jpg,2025-11-03,鴨川,35.0116,135.7681,京都府,日本,不明,飛び込み確認,kawasemi`;
-
+     1,ルリビタキ,ヒタキ科,/images/birds/ruribitaki-01.jpg,2026-01-12,京都御苑,35.0253,135.7621,京都府,日本,成鳥オス,朝の林縁で観察,ruribitaki
+     2,ルリビタキ,ヒタキ科,/images/birds/ruribitaki-02.jpg,2026-01-15,比叡山,35.0704,135.8405,京都府,日本,成鳥メス,別地点で確認,ruribitaki
+     3,カワセミ,カワセミ科,/images/birds/kawasemi-01.jpg,2025-11-03,鴨川,35.0116,135.7681,京都府,日本,不明,飛び込み確認,kawasemi`;
     const AUTO_CSV_PATH = "/data/birds_master.csv";
 
     const initialBirds: BirdRecord[] = [
