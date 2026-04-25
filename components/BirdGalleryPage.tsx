@@ -59,6 +59,7 @@ type FormState = {
     {
         id: 1,
         japaneseName: "ルリビタキ",
+        family: "ヒタキ科",
         photo: "/images/birds/ruribitaki-01.jpg",
         dateTaken: "2026-01-12",
         placeName: "京都御苑",
@@ -73,6 +74,7 @@ type FormState = {
     {
         id: 2,
         japaneseName: "ルリビタキ",
+        family: "ヒタキ科",
         photo: "/images/birds/ruribitaki-02.jpg",
         dateTaken: "2026-01-15",
         placeName: "比叡山",
@@ -87,6 +89,7 @@ type FormState = {
     {
         id: 3,
         japaneseName: "カワセミ",
+        family: "カワセミ科",
         photo: "/images/birds/kawasemi-01.jpg",
         dateTaken: "2025-11-03",
         placeName: "鴨川",
@@ -101,6 +104,7 @@ type FormState = {
     {
         id: 4,
         japaneseName: "シジュウカラ",
+        family: "シジュウカラ科",
         photo: "/images/birds/shijukara-01.jpg",
         dateTaken: "2025-05-18",
         placeName: "京都府立植物園",
@@ -115,6 +119,7 @@ type FormState = {
     {
         id: 5,
         japaneseName: "ヤマガラ",
+        family: "シジュウカラ科",
         photo: "/images/birds/yamagara-01.jpg",
         dateTaken: "2025-10-27",
         placeName: "比叡山",
